@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kong
-  namespace: auth
+  namespace: gateway
   labels:
     app: kong
 spec:
@@ -15,6 +15,10 @@ spec:
       labels:
         app: kong
     spec:
+      volumes:
+        - name: kong-config-volume
+          configMap:
+            name: kong-config
       containers:
         - name: kong
           image: kong/kong-gateway:3.4
@@ -33,5 +37,9 @@ spec:
               value: "/dev/stderr"
             - name: KONG_LOG_LEVEL
               value: "info"
+          volumeMounts:
+            - name: kong-config-volume
+              mountPath: /opt/kong/kong.yaml
+              subPath: kong.yaml
           ports:
             - containerPort: 8000
