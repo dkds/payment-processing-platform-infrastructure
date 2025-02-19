@@ -1,2 +1,2 @@
-keycloak-secrets.yaml
-postgres-secrets.yaml
+keycloak.secrets.yaml
+postgres.secrets.yaml
