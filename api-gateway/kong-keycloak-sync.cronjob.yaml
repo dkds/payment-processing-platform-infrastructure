@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: kong-keycloak-sync
+  namespace: gateway
+spec:
+  schedule: "*/30 * * * *" # Runs every 30 minutes
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: sync-keycloak-key
+              image: bitnami/kubectl:latest
+              command:
+                - /bin/sh
+                - "-c"
+                - |
+                  apk add --no-cache curl jq
+                  /bin/sh /scripts/update-kong-keycloak-key.sh
+              volumeMounts:
+                - name: script-volume
+                  mountPath: /scripts
+          restartPolicy: OnFailure
+          volumes:
+            - name: script-volume
+              configMap:
+                name: kong-keycloak-sync-script
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kong-keycloak-sync-script
+  namespace: gateway
+data:
+  update-kong-keycloak-key.sh: |
+    #!/bin/sh
+    KEYCLOAK_URL="http://keycloak-internal.auth.svc.cluster.local/realms/master/protocol/openid-connect/certs"
+    KONG_ADMIN_URL="http://kong.gateway.svc.cluster.local:8001"
+
+    PUBLIC_KEY=$(curl -s "$KEYCLOAK_URL" | jq -r '.keys[0].n' | base64 --decode)
+
+    if [ -z "$PUBLIC_KEY" ]; then
+      echo "Error: Could not fetch Keycloak public key."
+      exit 1
+    fi
+
+    curl -i -X POST "$KONG_ADMIN_URL/jwt" \
+      --data "key=Keycloak" \
+      --data "algorithm=RS256" \
+      --data "rsa_public_key=$PUBLIC_KEY"
+
+    echo "Kong JWT key updated successfully."
