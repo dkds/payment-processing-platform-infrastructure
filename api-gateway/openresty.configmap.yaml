@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: openresty-config
+  namespace: gateway
+data:
+  nginx.conf: |
+    worker_processes auto;
+    events { worker_connections 1024; }
+
+    http {
+        lua_package_path "/usr/local/openresty/lualib/?.lua;;";
+        lua_shared_dict discovery 1m;
+        resolver 8.8.8.8;
+
+        init_by_lua_block {
+            local cjson = require "cjson"
+            local http = require "resty.http"
+            
+            -- Function to fetch Keycloak JWKS (public key)
+            function fetch_jwks()
+                local httpc = http.new()
+                local res, err = httpc:request_uri("http://keycloak-internal.auth.svc.cluster.local:8080/realms/master/protocol/openid-connect/certs", {
+                    method = "GET",
+                    ssl_verify = false
+                })
+
+                if not res then
+                    ngx.log(ngx.ERR, "Failed to fetch JWKS: ", err)
+                    return nil
+                end
+
+                local jwks = cjson.decode(res.body)
+                return jwks.keys[1].x5c[1]
+            end
+
+            -- Store the fetched public key
+            local key = fetch_jwks()
+            if key then
+                ngx.shared.discovery:set("public_key", "-----BEGIN PUBLIC KEY-----\n" .. key .. "\n-----END PUBLIC KEY-----")
+            end
+        }
+
+        server {
+            listen 80;
+
+            location / {
+                access_by_lua_block {
+                    local jwt = require "resty.jwt"
+                    local cjson = require "cjson"
+
+                    local token = ngx.var.http_Authorization
+                    if not token then
+                        ngx.status = ngx.HTTP_UNAUTHORIZED
+                        ngx.say(cjson.encode({ error = "Missing token" }))
+                        return ngx.exit(ngx.HTTP_UNAUTHORIZED)
+                    end
+
+                    token = token:gsub("Bearer ", "")
+                    local public_key = ngx.shared.discovery:get("public_key")
+
+                    local jwt_obj = jwt:verify(public_key, token)
+                    if not jwt_obj.verified then
+                        ngx.status = ngx.HTTP_UNAUTHORIZED
+                        ngx.say(cjson.encode({ error = "Invalid token" }))
+                        return ngx.exit(ngx.HTTP_UNAUTHORIZED)
+                    end
+                }
+
+                proxy_pass http://test-service.services.svc.cluster.local;
+            }
+
+            # Reload public key every 10 minutes
+            location = /reload_jwks {
+                content_by_lua_block {
+                    local key = fetch_jwks()
+                    if key then
+                        ngx.shared.discovery:set("public_key", "-----BEGIN PUBLIC KEY-----\n" .. key .. "\n-----END PUBLIC KEY-----")
+                        ngx.say("Updated public key")
+                    else
+                        ngx.say("Failed to update public key")
+                    end
+                }
+            }
+        }
+    }
