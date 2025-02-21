@@ -25,6 +25,8 @@ spec:
           env:
             - name: KONG_DATABASE
               value: "off"
+            - name: KONG_ADMIN_LISTEN
+              value: "0.0.0.0:8001" 
             - name: KONG_DECLARATIVE_CONFIG
               value: "/opt/kong/kong.yaml"
             - name: KONG_PROXY_ACCESS_LOG

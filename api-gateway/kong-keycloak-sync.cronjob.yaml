@@ -4,19 +4,21 @@ metadata:
   name: kong-keycloak-sync
   namespace: gateway
 spec:
-  schedule: "*/30 * * * *" # Runs every 30 minutes
+  schedule: "*/1 * * * *" # Runs every 1 minutes
+  successfulJobsHistoryLimit: 3  # Keep only the last 3 successful jobs
+  failedJobsHistoryLimit: 1  # Keep only the last failed job for debugging
   jobTemplate:
     spec:
       template:
         spec:
           containers:
             - name: sync-keycloak-key
-              image: bitnami/kubectl:latest
+              image: alpine:latest
               command:
                 - /bin/sh
                 - "-c"
                 - |
-                  apk add --no-cache curl jq
+                  apk add --no-cache curl jq openssl
                   /bin/sh /scripts/update-kong-keycloak-key.sh
               volumeMounts:
                 - name: script-volume
@@ -35,19 +37,22 @@ metadata:
 data:
   update-kong-keycloak-key.sh: |
     #!/bin/sh
-    KEYCLOAK_URL="http://keycloak-internal.auth.svc.cluster.local/realms/master/protocol/openid-connect/certs"
-    KONG_ADMIN_URL="http://kong.gateway.svc.cluster.local:8001"
+    echo "Updating Kong with Keycloak public key..."
+    KEYCLOAK_URL="http://keycloak-internal.auth.svc.cluster.local:8080/realms/master/protocol/openid-connect/certs"
+    KONG_ADMIN_URL="http://kong-internal.gateway.svc.cluster.local:8001/consumers/default-user/jwt"
 
-    PUBLIC_KEY=$(curl -s "$KEYCLOAK_URL" | jq -r '.keys[0].n' | base64 --decode)
+    PUBLIC_KEY=$(curl -v -s --max-time 30 "$KEYCLOAK_URL" | jq -r '.keys[0].x5c[0]' | base64 -d | openssl x509 -inform DER -pubkey -noout)
 
     if [ -z "$PUBLIC_KEY" ]; then
       echo "Error: Could not fetch Keycloak public key."
       exit 1
     fi
+    echo "Public Key: $PUBLIC_KEY"
+    echo "Updating Kong JWT key..."
 
-    curl -i -X POST "$KONG_ADMIN_URL/jwt" \
+    curl -v -i --max-time 30 -X POST "$KONG_ADMIN_URL" \
       --data "key=Keycloak" \
       --data "algorithm=RS256" \
-      --data "rsa_public_key=$PUBLIC_KEY"
+      --data-urlencode "rsa_public_key=$PUBLIC_KEY"
 
     echo "Kong JWT key updated successfully."

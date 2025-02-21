@@ -8,6 +8,24 @@ data:
     _format_version: "3.0"
     _transform: true
 
+    consumers:
+      - username: default-user
+
+    jwt_secrets:
+      - consumer: default-user
+        key: Keycloak
+        algorithm: RS256
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAj2PnMr+wCpl1kY4jrpB5
+          HaL95VkfWA7y07x/QGF6LpLOjWISUfbJ1SHyunVjW9DKjtzM667QFPuuLjUJM2On
+          FKzHoM7b4et1A2SwMYlrhzu81QRzjSTDd+OmkQ/CLLAGScpCyvdbfhdT1zZjHDBT
+          zJ2bZ7qsjiGZZn3QJ+SdN4sJbk92usNVPAI15+fhIqo9Dm+sPASYz1/0PEMETxKr
+          FK3y2N0fsnMLg76H3D9E5D7tEQ5p+dHCgEr07SG66M5ablaRudR1dgr7xszkfuOD
+          1evwf5fvTPxD2on8aVV26hQdlk21v4EjJCJW9CYlPHxLUIjQQMfXppKrgr18Bq2c
+          4wIDAQAB
+          -----END PUBLIC KEY-----
+
     services:
       - name: test-service
         url: http://test-service.services.svc.cluster.local
