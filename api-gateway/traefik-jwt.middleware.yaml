@@ -1,0 +1,13 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: jwt-auth
+  namespace: gateway
+spec:
+  plugin:
+    jwt:
+      secret: ""
+      jwksUrl: "http://keycloak-internal.auth.svc.cluster.local:8080/realms/master/protocol/openid-connect/certs"
+      audience: "api-client"
+      issuer: "http://keycloak-internal.auth.svc.cluster.local:8080/realms/master"
+      authHeader: "Authorization"
