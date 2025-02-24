@@ -4,9 +4,6 @@
 			"path": "keycloak-service"
 		},
 		{
-			"path": "api-gateway"
-		},
-		{
 			"path": "test-service"
 		}
 	],
