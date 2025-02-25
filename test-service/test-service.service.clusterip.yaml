@@ -3,11 +3,13 @@ kind: Service
 metadata:
   name: test-service
   namespace: services
+  labels:
+    app: test-service
 spec:
-  ports:
-    - port: 80
-      targetPort: 80
-      protocol: TCP
   type: ClusterIP
   selector:
     app: test-service
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
